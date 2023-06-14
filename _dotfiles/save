@@ -1,0 +1,9 @@
+#!/bin/bash
+
+config_dir="${XDG_CONFIG_HOME:-$HOME/.config}/dotfiles"
+
+main() {
+   rsync -arv --delete "$@" --files-from "$config_dir/files.conf" $HOME ~/projects/dotfiles/home
+}
+
+main "$@"

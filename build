@@ -1,0 +1,11 @@
+#!/bin/bash
+
+main() {
+   if [[ -d "$PWD/bin" ]]; then
+      PATH+=":$PWD/bin"
+   fi
+
+   version
+}
+
+main "$@"

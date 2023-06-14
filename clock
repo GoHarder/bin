@@ -1,0 +1,130 @@
+#!/bin/bash
+
+state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/clock"
+
+args=$(getopt --name 'clock' --options 'e:h' --long 'edit:,help' -- "$@")
+
+eval set -- "$args"
+unset args
+
+# TODO: 5-25-2023 10:14 AM
+# Add zenity popup alarms
+
+state_file="$state_dir/state.txt"
+
+main() {
+   # Send arguements to flag parser
+   parse_args $@
+
+   [ ! -e "$state_file" ] && mkdir -p "$state_dir" && touch "$state_file"
+
+   set_time_stamp
+
+   local stamp=$(date -d "@$(get_value 'stamp')")
+
+   date -d "$stamp +8 hours +30 minutes" '+%A %B %d %Y %I:%M%P' | sed 's/ 0/ /'
+}
+
+# Commands
+
+edit() {
+   case "$to_edit" in
+      'in')
+         local stamp=$(time_stamp "${args[0]}")
+         set_value 'stamp' "$stamp";;
+      *)
+         error "clock: invalid option $to_edit";;
+   esac
+}
+
+help_menu() {
+   local text="\
+      Usage: clock
+      Returns the time and has alarm functionality.
+
+      Mandatory arguments to long options are mandatory for short options too.
+        -e, --edit          view the error logs
+
+      Exit Status:
+       0  if OK,
+       1  if minor problems (e.g., invalid option)."
+
+   echo "$text" | sed 's/^\s\{6\}//g'
+   exit 0
+}
+
+# Helpers
+
+error() {
+   echo $@ && exit 1
+}
+
+parse_args() {
+   run_edit=false
+
+   while [ -n "$1" ]; do
+      case "$1" in
+         '-e'|'--edit')
+            run_edit=true
+            to_edit="$2"
+            shift 2
+            continue;;
+         '-h'|'--help')
+            help_menu && break;;
+         '--')
+            break;;
+         *)
+            error "clock: invalid option $1";;
+      esac
+   done
+
+   for arg; do
+	   [ $arg == '--' ] && continue
+      args=("${args[@]}" "$arg")
+   done
+
+   [ $run_edit == true ] && edit
+}
+
+# - File
+
+get_value() {
+   awk -F '=' "/$1/ {print \$2}" "$state_file" 2> /dev/null || echo
+}
+
+set_value() {
+   if [[ -z "$(get_value $1)" ]]; then
+      echo "$1=$2" >> "$state_file"
+      return 0
+   fi
+
+   sed -i "s/\($1=\).*/\1$2/" "$state_file"
+}
+
+time_stamp() {
+   local now=$(date -d "now $1")
+   local mins=$(date -d "$now" '+%M')
+   local mod=$(($mins % 15))
+
+   if [[ $mod -gt 2 ]]; then
+      mod="+$((15 - $mod)) minutes"
+   else
+      mod="-$mod minutes"
+   fi
+
+   date -d "$now $mod" '+%s'
+}
+
+set_time_stamp() {
+   local date_now=$(date '+%m-%d-%Y')
+   local date_var=$(get_value 'date')
+
+   [ "$date_now" == "$date_var" ] && return 0
+
+   chrome 'https://www.paycomonline.net/v4/ee/web.php/app/login'
+
+   set_value 'date' "$date_now"
+   set_value 'stamp' $(time_stamp)
+}
+
+main "$@"

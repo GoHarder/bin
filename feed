@@ -1,0 +1,67 @@
+#!/bin/bash
+
+temp=$(getopt --name 'feed' --options 'bh' --long 'bookmark,help' -- "$@")
+
+eval set -- "$temp"
+unset temp
+
+main() {
+   options=()
+   args=()
+
+   parse_options $@
+
+   local command="${args[0]}"
+   unset args[0]
+
+   case "$command" in
+      *)
+         newsboat;;
+   esac
+}
+
+bookmark() {
+   local url="$1"
+   local title="$2"
+   local description="$3"
+   local feed_title="$4"
+
+   local dir="$HOME/documents/feeds"
+   local file=$(echo "$dir/$feed_title.txt" | sed 's/ /_/g')
+
+   [ ! -e "$dir" ] && mkdir -p "$dir"   
+   [ ! -e "$file" ] && echo -e "Title|URL|Notes\n-$feed_title-" > "$file"
+
+   echo -e "${title}|${url}|${description}" >> "$file"
+   exit
+}
+
+help() {
+   echo 'Help Menu'
+   exit 0
+}
+
+parse_options() {
+   while [ -n "$1" ]; do
+      case "$1" in
+         '-b'|'--bookmark')
+            args+=(bookmark)
+            shift && continue;;
+         '-h'|'--help')
+            help
+            break;;
+         '--')
+            shift
+            break;;
+         *)
+			   echo 'Internal error!' >&2
+			   exit 1;;
+      esac
+   done
+
+   for arg; do
+	   args+=("$arg")
+   done
+}
+
+main "$@"

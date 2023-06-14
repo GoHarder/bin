@@ -1,0 +1,14 @@
+#!/bin/bash
+
+url="$1"
+title="$2"
+description="$3"
+feed_title="$4"
+
+dir="$HOME/documents/feeds"
+file=$(echo "$dir/$feed_title.txt" | sed 's/ /_/g')
+
+[ ! -e "$dir" ] && mkdir -p "$dir"   
+[ ! -e "$file" ] && echo -e "Title|URL|Notes\n-$feed_title-" > "$file"
+
+echo -e "\n${title}|${url}|${description}" >> "$file"
