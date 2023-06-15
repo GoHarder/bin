@@ -12,12 +12,19 @@ main() {
 
    create_session "$session"
 
+   # large 1: bash* (3 panes) [232x65] [layout 1aa6,232x65,0,0{116x65,0,0,6,115x65,117,0[115x54,117,0,7,115x10,117,55,8]}] @3 (active)
+   # small  1: bash* (3 panes) [114x64] [layout 29f4,114x64,0,0[114x26,0,0,1,114x26,0,27,2,114x10,0,54,3]] @0 (active)
+
    local panes=$(tmux list-panes -a)
    local pane_2="$(echo $panes | grep 'Desktop:1.2')"
    local pane_3="$(echo $panes | grep 'Desktop:1.3')"
 
-   [ -z "$pane_2" ] && tmux split-window -h
-   [ -z "$pane_3" ] && tmux split-window -d -l 10 -t 'Desktop:1.2' cava
+   if [ "$columns" -gt 230 ]; then
+      [ -z "$pane_2" ] && tmux split-window -h
+      [ -z "$pane_3" ] && tmux split-window -d -l 10 -t 'Desktop:1.2' cava
+   else
+      [ -z "$pane_2" ] && tmux split-window -d -l 10 -t 'Desktop:1.1' cava
+   fi
 
    attach_session "$session"
 }
@@ -44,7 +51,7 @@ create_session() {
    if [ $? != 0 ]; then
       # Get the hight and width of the terminal
       local lines="$(tput lines)"
-      local columns="$(tput cols)"
+      columns="$(tput cols)"
 
       # Create a new session in detached mode
       TMUX='' tmux new-session -d -x "$columns" -y "$lines" -s "$target"
