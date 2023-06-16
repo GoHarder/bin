@@ -1,29 +1,32 @@
 #!/bin/bash
 
 # https://wttr.in/:help
+# https://ifconfig.co
 
-if [[ -z "$WTTR_LOCATION" ]]; then
-   WTTR_LOCATION=$(curl -s https://whatismycountry.com | grep -o '\(-\)\?[0-9]\+\.[0-9]\+&#176;, \(-\)\?[0-9]\+\.[0-9]\+&#176;' | sed 's/&#176;//g;s/ //')
-
-   export WTTR_LOCATION
-fi
-
-if [[ -z "$WTTR_PARAMS" ]]; then
-   WTTR_PARAMS='FQu'
-
-   if [[ -t 1 ]] && [[ "$(tput cols)" -lt 125 ]]; then
-      WTTR_PARAMS+='n'
-   fi 2> /dev/null
+if [ -z $LOCATION ]; then
+   export LOCATION=$(curl -s ifconfig.co/json | jq -r '[.city, .region_code] | join(",")')
 fi
 
 main() {
+   local opts='F'
    local args=""
+   local lines=$(tput lines)
 
-   for p in $WTTR_PARAMS "$@"; do
+   [ $(tput cols) -lt 125 ] && opts+='n'
+
+   if [ $lines -le 18 ]; then
+      opts+='0'
+   elif [ $lines -le 28 ]; then
+      opts+='1'
+   elif [ $lines -le 38 ]; then
+      opts+='2'
+   fi
+
+   for p in $opts "$@"; do
       args+=" --data-urlencode $p "
    done
 
-  curl -fGsS -H "Accept-Language: ${LANG%_*}" $args --compressed "wttr.in/${WTTR_LOCATION}"
+  curl -fGsS $args --compressed "wttr.in/${LOCATION}"
 }
 
 main "$@"
