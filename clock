@@ -121,7 +121,7 @@ set_time_stamp() {
 
    [ "$date_now" == "$date_var" ] && return 0
 
-   chrome 'https://www.paycomonline.net/v4/ee/web.php/app/login'
+   wslview 'https://www.paycomonline.net/v4/ee/web.php/app/login'
 
    set_value 'date' "$date_now"
    set_value 'stamp' $(time_stamp)
