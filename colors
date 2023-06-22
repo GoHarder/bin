@@ -1,0 +1,75 @@
+#!/bin/bash
+
+# bg:default
+
+#  COLOR NAMES:
+#        fg          Text
+#  16    bg          Background
+#        preview-fg  Preview window text
+#  232   preview-bg  Preview window background
+#  hl         Highlighted substrings
+#  fg+        Text (current line)
+#  bg+        Background (current line)
+#  gutter     Gutter on the left (defaults to bg+)
+#  hl+        Highlighted substrings (current line)
+#  query      Query string
+#  disabled   Query string when search is disabled
+#  info       Info line (match counters)
+#  border     Border around the window (--border and --preview)
+#  prompt     Prompt
+#  pointer    Pointer to the current line
+#  marker     Multi-select marker
+#  spinner    Streaming input indicator
+#  header     Header
+
+  # [⣿⣿⣿⣿⣿⣿⣷⣿⣿⣿]
+  # ✔ 831f51541d38 Pull complete   
+  # [+] Running 11/11 
+
+# colors="--color=pointer:208"
+
+# ls | fzf -m  --pointer='▸' --marker='•' --color='bg:16'
+
+# fzf --preview='head -$LINES {}'
+# ls -Al | fzf -m --marker='•' $colors --preview="echo user={3} when={-4..-2}; cat {-1}" --header-lines=1
+
+printf '%s ' 'rs'
+printf '\e[38;5;26m%s\e[0m ' 'di'
+printf '\e[38;5;39m%s\e[0m ' 'ln'
+printf '%s ' 'mh'
+printf '\e[38;5;220m%s\e[0m ' 'pi'
+printf '\e[38;5;134m%s\e[0m ' 'so do'
+printf '\e[38;5;220m%s\e[0m ' 'bd cd'
+printf '\e[38;5;124m%s\e[0m ' 'or'
+printf '\e[38;5;252m%s\e[0m ' 'mi'
+printf '\e[38;5;252;48;5;124m%s\e[0m ' 'su'
+printf '\e[30;48;5;220m%s\e[0m ' 'sg'
+printf '\e[38;5;252;48;5;124m%s\e[0m ' 'ca'
+printf '\e[30;48;5;35m%s\e[0m ' 'tw'
+printf '\e[38;5;26;48;5;35m%s\e[0m ' 'ow'
+printf '\e[38;5;252;48;5;26m%s\e[0m ' 'st'
+printf '\e[38;5;35m%s\e[0m \n' 'ex'
+
+# Block Device Driver      220   dc
+# Character Device Driver  220   dc
+# Directory	               26    1a
+# Executable               35    23
+# Regular	               00    00
+# Hard Link	               00    00
+# Symbolic Link            39    27
+# Missing OR file details	252   fc
+# Orphaned symbolic link	124   7c
+# FIFO	                  220   dc
+# Socket                   134   86
+# Unknown                  208   d0
+
+( # Run in a subshell so it won't crash current color settings
+    dircolors -b >/dev/null
+    IFS=:
+    for ls_color in ${LS_COLORS[@]}; do # For all colors
+        color=${ls_color##*=}
+        ext=${ls_color%%=*}
+        echo -en "\E[${color}m${ext}\E[0m " # echo color and extension
+    done
+    echo
+)
