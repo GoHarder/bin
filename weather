@@ -3,6 +3,14 @@
 # https://wttr.in/:help
 # https://ifconfig.co
 
+required=('curl' 'jq')
+
+for package in "${required[@]}"; do
+   if [ -z "$(which $package)" ]; then
+      echo "SCRIPT: $package is required to run SCRIPT" && exit 1
+   fi
+done
+
 if [ -z $LOCATION ]; then
    export LOCATION=$(curl -s ifconfig.co/json | jq -r '[.city, .region_code] | join(",")')
 fi
