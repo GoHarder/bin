@@ -7,7 +7,7 @@ required=('curl' 'jq')
 
 for package in "${required[@]}"; do
    if [ -z "$(which $package)" ]; then
-      echo "SCRIPT: $package is required to run SCRIPT" && exit 1
+      echo "weather: $package is required to run weather" && exit 1
    fi
 done
 
