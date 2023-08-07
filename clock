@@ -103,7 +103,7 @@ set_value() {
 
 time_stamp() {
    local now=$(date -d "now $1")
-   local mins=$(date -d "$now" '+%M')
+   local mins=$(date -d "$now" '+%M' | sed 's/^0/ /')
    local mod=$(($mins % 15))
 
    if [[ $mod -gt 2 ]]; then
