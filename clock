@@ -4,46 +4,57 @@ state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/clock"
 
 args=$(getopt --name 'clock' --options 'e:h' --long 'edit:,help' -- "$@")
 
+if [ $? -ne 0 ]; then
+   echo 'Terminating...' >&2
+   exit 1
+fi
+
 eval set -- "$args"
 unset args
 
-# TODO: 5-25-2023 10:14 AM
-# Add zenity popup alarms
-
 state_file="$state_dir/state.txt"
+[ ! -e "$state_file" ] && mkdir -p "$state_dir" && touch "$state_file"
 
 main() {
-   # Send arguements to flag parser
-   parse_args $@
+   options=()
+   args=()
+   parse_options "$@"
 
-   [ ! -e "$state_file" ] && mkdir -p "$state_dir" && touch "$state_file"
+   local option="${options[0]}"
+   unset options[0]
 
-   set_time_stamp
+   case "$option" in
+      'edit')
+         edit "${args[0]}";;
+      *);;
+   esac
+   
+   local date_now=$(date '+%m-%d-%Y')
+   local date_var=$(get_value 'date')
 
-   local stamp=$(date -d "@$(get_value 'stamp')")
+   if [ "$date_now" != "$date_var" ]; then
+      set_value 'date' "$date_now"
+      set_value 'stamp' $(get_stamp)
+      wslview 'https://www.paycomonline.net/v4/ee/web.php/app/login'
+   fi
 
-   date -d "$stamp +8 hours +30 minutes" '+%A %B %d %Y %I:%M%P' | sed 's/ 0/ /'
+   show_time
+
+   [ "$date_now" == "$date_var" ] && clock_out
 }
-
-# Commands
 
 edit() {
-   case "$to_edit" in
-      'in')
-         local stamp=$(time_stamp "${args[0]}")
-         set_value 'stamp' "$stamp";;
-      *)
-         error "clock: invalid option $to_edit";;
-   esac
+   local stamp=$(get_stamp "$1")
+   set_value 'stamp' "$stamp"
 }
 
-help_menu() {
+help() {
    local text="\
-      Usage: clock
-      Returns the time and has alarm functionality.
+      Usage: clock [OPTION]...
+      Manage clocking in and clocking out.
 
       Mandatory arguments to long options are mandatory for short options too.
-        -e, --edit          view the error logs
+        -e, --edit          edit the clock in time
 
       Exit Status:
        0  if OK,
@@ -53,40 +64,28 @@ help_menu() {
    exit 0
 }
 
-# Helpers
-
-error() {
-   echo $@ && exit 1
-}
-
-parse_args() {
-   run_edit=false
-
+parse_options() {
    while [ -n "$1" ]; do
       case "$1" in
-         '-e'|'--edit')
-            run_edit=true
-            to_edit="$2"
-            shift 2
-            continue;;
-         '-h'|'--help')
-            help_menu && break;;
+         '-h'|'--help')   
+            help && break;;
+         '-e'|'--edit')   
+            options+=(edit)
+            args=("${args[@]}" "$2")
+            shift 2 && continue;;
          '--')
-            break;;
+            shift && break;;
          *)
-            error "clock: invalid option $1";;
+			   echo 'Internal error!' >&2
+			   exit 1;;
       esac
    done
-
-   for arg; do
-	   [ $arg == '--' ] && continue
-      args=("${args[@]}" "$arg")
-   done
-
-   [ $run_edit == true ] && edit
 }
 
-# - File
+show_time () {
+   local stamp=$(date -d "@$(get_value 'stamp')")
+   date -d "$stamp +8 hours +30 minutes" '+%A %B %d %Y %I:%M%P' | sed 's/ 0/ /g'
+}
 
 get_value() {
    awk -F '=' "/$1/ {print \$2}" "$state_file" 2> /dev/null || echo
@@ -95,15 +94,14 @@ get_value() {
 set_value() {
    if [[ -z "$(get_value $1)" ]]; then
       echo "$1=$2" >> "$state_file"
-      return 0
-   fi
-
-   sed -i "s/\($1=\).*/\1$2/" "$state_file"
+   else
+      sed -i "/$1/s/=.\+/=$2/" "$state_file"
+   fi   
 }
 
-time_stamp() {
+get_stamp() {
    local now=$(date -d "now $1")
-   local mins=$(date -d "$now" '+%M' | sed 's/^0/ /')
+   local mins=$(date -d "$now" '+%M' | sed 's/^0//')
    local mod=$(($mins % 15))
 
    if [[ $mod -gt 2 ]]; then
@@ -115,16 +113,13 @@ time_stamp() {
    date -d "$now $mod" '+%s'
 }
 
-set_time_stamp() {
-   local date_now=$(date '+%m-%d-%Y')
-   local date_var=$(get_value 'date')
-
-   [ "$date_now" == "$date_var" ] && return 0
-
-   wslview 'https://www.paycomonline.net/v4/ee/web.php/app/login'
-
-   set_value 'date' "$date_now"
-   set_value 'stamp' $(time_stamp)
+clock_out() {
+   echo -n "Clock out? [y/(n)]: "
+   read -n 1 -r ans 
+   
+   if [[ "$ans" == 'y' ]]; then
+      wslview 'https://www.paycomonline.net/v4/ee/web.php/app/login'
+   fi
 }
 
 main "$@"
