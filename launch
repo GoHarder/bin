@@ -150,7 +150,7 @@ _parse_options() {
 }
 
 _select_project() {
-  jq -r '.[].name' "$STATE_FILE" | fzf --reverse --header="Select a project" --header-first
+  jq -r 'map(.name) | sort | .[]' "$STATE_FILE" | fzf --reverse --header="Select a project" --header-first
 }
 
 _check_requirements fzf jq
