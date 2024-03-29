@@ -1,0 +1,158 @@
+#!/bin/bash
+
+TEMP=$(getopt --name 'launch' --options 'ahr' --long 'add,help,remove' -- "$@")
+
+STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/launch"
+STATE_FILE="$STATE_DIR/state.json"
+
+eval set -- "$TEMP"
+unset TEMP
+
+# if state file doesn't exist, create it
+[ ! -e "$STATE_FILE" ] && mkdir -p "$STATE_DIR" && echo '[]' >"$STATE_FILE"
+
+main() {
+  _parse_options "$@"
+
+  local name=$(_select_project)
+  local options=("Launch" "Exit")
+  local result
+  read -r result < <(
+    printf '%s\0' "${options[@]}" |
+      fzf --read0 --print0 --reverse --header="Select an option" --header-first
+  )
+
+  case "$result" in
+  "Launch")
+    local dir=$(jq -r --arg name "$name" '.[] | select(.name == $name) | .dir' "$STATE_FILE")
+    [ -d "$dir" ] && code "$dir"
+    exit 0
+    ;;
+  "Exit")
+    exit 0
+    ;;
+  esac
+}
+
+add() {
+  local start="${1:-$HOME/projects}"
+  local dir
+  read -r dir < <(
+    cd "$start"
+    ls -1 -d */ |
+      fzf --reverse --header="Select a project" --header-first |
+      tr -d "/"
+  )
+
+  local options=("Add to launch manager" "Select sub directory" "Undo" "Exit")
+  local result
+  read -r result < <(
+    printf '%s\0' "${options[@]}" |
+      fzf --read0 --print0 --reverse --header="Select an option" --header-first
+  )
+  local path="$start/$dir"
+
+  case "$result" in
+  "Add to launch manager")
+    local name="${path#"$HOME/projects/"}/"
+
+    # check if the directory already exists in the state file
+    if jq -e --arg name "$name" '.[] | select(.name == $name)' "$STATE_FILE" &>/dev/null; then
+      echo "Directory already exists in the state file"
+      exit 1
+    fi
+
+    jq --arg name "$name" --arg dir "$path" '. += [{"name": $name, "dir": $dir}]' "$STATE_FILE" >"$STATE_FILE.tmp" &&
+      mv "$STATE_FILE.tmp" "$STATE_FILE"
+    echo "Added $name to launch manager"
+
+    exit 0
+    ;;
+  "Select sub directory")
+    add "$path"
+    ;;
+  "Undo")
+    add "$start"
+    ;;
+  "Exit")
+    exit 0
+    ;;
+  esac
+}
+
+help() {
+  echo "Usage: launch [OPTION]"
+  echo "  -a, --add     Add a project to the launch manager"
+  echo "  -h, --help    Show this help message"
+  echo "  -r, --remove  Remove a project from the launch manager"
+  exit 0
+}
+
+remove() {
+  local name=$(_select_project)
+
+  local options=("Remove from launch manager" "Exit")
+
+  local result
+  read -r result < <(
+    printf '%s\0' "${options[@]}" |
+      fzf --read0 --print0 --reverse --header="Select an option" --header-first
+  )
+
+  if [[ "$result" == "Remove from launch manager" ]]; then
+    jq --arg name "$name" 'del(.[] | select(.name == $name))' "$STATE_FILE" >"$STATE_FILE.tmp" &&
+      mv "$STATE_FILE.tmp" "$STATE_FILE"
+    echo "Removed $name from launch manager"
+
+    exit 0
+  else
+    exit 0
+  fi
+}
+
+# Check if the required packages are installed on the system.
+_check_requirements() {
+  local packages="$@"
+
+  for package in $packages; do
+    if ! command -v $package &>/dev/null; then
+      echo "$package is not installed on your system"
+      echo "Please install it and try again"
+      exit 1
+    fi
+  done
+}
+
+_parse_options() {
+  while true; do
+    case "$1" in
+    -a | --add)
+      add
+      break
+      ;;
+    -h | --help)
+      help
+      break
+      ;;
+    -r | --remove)
+      remove
+      break
+      ;;
+    --)
+      shift
+      break
+      ;;
+    *)
+      break
+      ;;
+    esac
+  done
+}
+
+_select_project() {
+  jq -r '.[].name' "$STATE_FILE" | fzf --reverse --header="Select a project" --header-first
+}
+
+_check_requirements fzf jq
+
+main "$@"
