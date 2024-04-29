@@ -1,125 +1,196 @@
 #!/bin/bash
 
-state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/clock"
-
-args=$(getopt --name 'clock' --options 'e:h' --long 'edit:,help' -- "$@")
+STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/clock"
+STATE_FILE="$STATE_DIR/state.json"
+TEMP=$(getopt --name 'clock' --options 'e:,h' --long 'edit:,help' -- "$@")
 
 if [ $? -ne 0 ]; then
-   echo 'Terminating...' >&2
-   exit 1
+  echo 'Terminating...' >&2
+  exit 1
 fi
 
-eval set -- "$args"
-unset args
+eval set -- "$TEMP"
+unset TEMP
 
-state_file="$state_dir/state.txt"
-[ ! -e "$state_file" ] && mkdir -p "$state_dir" && touch "$state_file"
+[ ! -e "$STATE_FILE" ] && mkdir -p "$STATE_DIR" && echo '{"date": null, "stamp": 0}' >"$STATE_FILE"
 
+# The main function is the entry point of the program. It takes command line arguments and performs the following steps:
+# 1. Parses the options passed to it using the parse_options function.
+# 2. Retrieves the current date using the date command and stores it in the date_now variable.
+# 3. Retrieves the value of the 'date' key from the state file using the get_value function and stores it in the date_var variable.
+# 4. If the current date is different from the stored date, it updates the 'date' key in the state file with the current date,
+#    updates the 'stamp' key with the current UTC timestamp using the get_utc_timestamp function,
+#    and opens a URL in the wslview browser.
+# 5. Calls the show_time function to display the current time.
+# 6. If the current date is the same as the stored date, it calls the clock_out function.
 main() {
-   options=()
-   args=()
-   parse_options "$@"
+  parse_options "$@"
 
-   local option="${options[0]}"
-   unset options[0]
+  local date_now=$(date '+%-m-%-d-%Y')
+  local date_var=$(get_value 'date')
 
-   case "$option" in
-      'edit')
-         edit "${args[0]}";;
-      *);;
-   esac
-   
-   local date_now=$(date '+%m-%d-%Y')
-   local date_var=$(get_value 'date')
+  if [ "$date_now" != "$date_var" ]; then
+    set_value 'date' "\"$date_now\""
+    set_value 'stamp' $(get_utc_timestamp)
+    wslview 'https://www.paycomonline.net/v4/ee/web.php/app/login'
+  fi
 
-   if [ "$date_now" != "$date_var" ]; then
-      set_value 'date' "$date_now"
-      set_value 'stamp' $(get_stamp)
-      wslview 'https://www.paycomonline.net/v4/ee/web.php/app/login'
-   fi
+  show_time
 
-   show_time
-
-   [ "$date_now" == "$date_var" ] && clock_out
+  [ "$date_now" == "$date_var" ] && clock_out
 }
 
+# Sub Commands
+# --------------------------------------------------------------------
+
+# A function that edits the UTC timestamp.
+#
+# Parameters:
+# - $1: The timestamp edit to insert.
+#
+# Returns: None.
 edit() {
-   local stamp=$(get_stamp "$1")
-   set_value 'stamp' "$stamp"
+  local stamp=$(get_utc_timestamp "$1")
+  set_value 'stamp' "$stamp"
 }
 
+# Prints the help menu.
 help() {
-   local text="\
-      Usage: clock [OPTION]...
-      Manage clocking in and clocking out.
+  echo '
+Usage: clock [OPTION]...
 
-      Mandatory arguments to long options are mandatory for short options too.
-        -e, --edit          edit the clock in time
+Manage clocking in and clocking out.
 
-      Exit Status:
-       0  if OK,
-       1  if minor problems (e.g., invalid option)."
+  -e, --edit=<STAMP>    edit stored timestamp to STAMP
+  -h, --help             display this help and exit
 
-   echo "$text" | sed 's/^\s\{6\}//g'
-   exit 0
+The STAMP argument is a time offset in the format "HH:MM".
+
+Exit Status:
+  0  if OK,
+  1  if minor problems (e.g., invalid option).
+'
+
+  exit 0
 }
 
-parse_options() {
-   while [ -n "$1" ]; do
-      case "$1" in
-         '-h'|'--help')   
-            help && break;;
-         '-e'|'--edit')   
-            options+=(edit)
-            args=("${args[@]}" "$2")
-            shift 2 && continue;;
-         '--')
-            shift && break;;
-         *)
-			   echo 'Internal error!' >&2
-			   exit 1;;
-      esac
-   done
-}
+# Helpers
+# --------------------------------------------------------------------
 
-show_time () {
-   local stamp=$(date -d "@$(get_value 'stamp')")
-   date -d "$stamp +8 hours +30 minutes" '+%A %B %d %Y %I:%M%P' | sed 's/ 0/ /g'
-}
-
-get_value() {
-   awk -F '=' "/$1/ {print \$2}" "$state_file" 2> /dev/null || echo
-}
-
-set_value() {
-   if [[ -z "$(get_value $1)" ]]; then
-      echo "$1=$2" >> "$state_file"
-   else
-      sed -i "/$1/s/=.\+/=$2/" "$state_file"
-   fi   
-}
-
-get_stamp() {
-   local now=$(date -d "now $1")
-   local mins=$(date -d "$now" '+%M' | sed 's/^0//')
-   local mod=$(($mins % 15))
-
-   if [[ $mod -gt 2 ]]; then
-      mod="+$((15 - $mod)) minutes"
-   else
-      mod="-$mod minutes"
-   fi
-
-   date -d "$now $mod" '+%s'
-}
-
+# clock_out - Prompts the user to clock out and opens a web page if the user confirms.
+#
+# This function prompts the user to confirm if they want to clock out. If the user
+# enters 'y' or 'Y', it opens a web page using the 'wslview' command.
 clock_out() {
-   echo -n "Clock out? [y/(n)]: "
-   read -n 1 -r ans 
-   
-   if [[ "$ans" == 'y' ]]; then
-      wslview 'https://www.paycomonline.net/v4/ee/web.php/app/login'
-   fi
+  read -rp "Clock out? [y/N] " -n 1 reply
+
+  if [[ $reply == [yY]* ]]; then
+    wslview 'https://www.paycomonline.net/v4/ee/web.php/app/login'
+  fi
 }
+
+# Check if the required packages are installed on the system.
+check_requirements() {
+  local packages="$@"
+
+  for package in $packages; do
+    if ! command -v $package &>/dev/null; then
+      echo "$package is not installed on your system"
+      echo "Please install it and try again"
+      exit 1
+    fi
+  done
+}
+
+# Get the UTC timestamp adjusted to the nearest quarter hour.
+#
+# Parameters:
+#   $1 (optional): A time offset in the format '[+-]HH:MM:SS'.
+#
+# Returns:
+#   The UTC timestamp adjusted to the nearest quarter hour as a Unix timestamp.
+get_utc_timestamp() {
+  local now=$(date -d "now $1")
+  local mins=$(date -d "now $1" '+%-M')
+  local adj=$(($mins % 15))
+
+  if [[ $adj -gt 2 ]]; then
+    adj="+$((15 - $adj))"
+  else
+    adj="-$adj"
+  fi
+
+  date -d "$now $adj minutes" '+%s'
+}
+
+# Shows the current time based on a stored timestamp.
+#
+# This function retrieves the stored timestamp using the `get_value` function
+# and calculates the corresponding time by adding 8 hours and 30 minutes to it.
+# The resulting time is then formatted as "Day Month Day Year Hour:Minute AM/PM".
+#
+# Returns:
+#   The formatted time string.
+show_time() {
+  local stamp=$(date -d "@$(get_value 'stamp')")
+  date -d "$stamp +8 hours +30 minutes" '+%A %B %-d %Y %-I:%M%P'
+}
+
+# Parses the command line options for the clock script.
+#
+# This function takes the command line options passed to the script and performs
+# the necessary actions based on the options provided. It supports the following
+# options:
+#   -e, --edit: Calls the edit function with the specified argument.
+#   -h, --help: Calls the help function.
+#   --: Treats all subsequent arguments as non-option arguments.
+parse_options() {
+  while true; do
+    case "$1" in
+    '-e' | '--edit')
+      edit "$2"
+      shift 2
+      continue
+      ;;
+    '-h' | '--help')
+      help
+      ;;
+    '--')
+      shift
+      ;;
+    *)
+      break
+      ;;
+    esac
+  done
+}
+
+# Retrieves the value associated with the given key from the state file.
+#
+# Parameters:
+# - $1: The key to retrieve the value for.
+#
+# Returns:
+# - The value associated with the given key, or an empty string if the key is not found.
+get_value() {
+  jq -r ".$1" "$STATE_FILE"
+}
+
+# Sets the value associated with a given key in the state file.
+#
+# Parameters:
+# - $1: The key to set the value for.
+# - $2: The value to set.
+#
+# Returns:
+# - None
+set_value() {
+  jq ".$1 = $2" "$STATE_FILE" >"$STATE_FILE.tmp" && mv "$STATE_FILE.tmp" "$STATE_FILE"
+}
+
+# Execute
+# --------------------------------------------------------------------
+
+check_requirements jq
 
 main "$@"
